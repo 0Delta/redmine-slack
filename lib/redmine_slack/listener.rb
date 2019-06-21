@@ -290,6 +290,10 @@ private
 
 	def mentions text
 		return nil if text.nil?
+
+    # Omit channel mention
+    text.gsub!("@channel", "[at]channel")
+
 		names = extract_usernames text
 		names.present? ? "\nTo: " + names.join(', ') : nil
 	end
