@@ -1,4 +1,5 @@
 require 'httpclient'
+require "json"
 
 module RedmineSlack
 class Listener < Redmine::Hook::Listener
