@@ -141,7 +141,8 @@ class Listener < Redmine::Hook::Listener
 
 		params = {
 			:text => msg,
-			:link_names => 1,
+      # disable default mention, use extract_usernames only
+			:link_names => 0,
 		}
 
 		params[:username] = username if username
@@ -291,11 +292,6 @@ private
 
 	def mentions text
 		return nil if text.nil?
-
-    # Omit wide mention
-    text.gsub!("@channel", "[at]channel")
-    text.gsub!("@here", "[at]here")
-
 		names = extract_usernames text
 		names.present? ? "\nTo: " + names.join(', ') : nil
 	end
@@ -308,13 +304,17 @@ private
 		# slack usernames may only contain lowercase letters, numbers,
 		# dashes and underscores and must start with a letter or number.
 		# text.scan(/@[a-z0-9][a-z0-9_\-]*/).uniq
-    names = []
+    _names = []
     # exclude reST quote line
     text.each_line {|line|
       if line.scan(/\A\s+\S+/).empty? then
-        names += line.scan(/@[a-z0-9][a-z0-9_\-]*/).uniq
+        _names += line.scan(/@[a-z0-9][a-z0-9_\-]*/).uniq
       end
     }
+    names = []
+    for name in _names do
+      names.push("<%s>" % name)
+    end
     names
 	end
 end
