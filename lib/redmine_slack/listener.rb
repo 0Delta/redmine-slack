@@ -7,9 +7,8 @@ class Listener < Redmine::Hook::Listener
 		issue = context[:issue]
 
 		channel = channel_for_project issue.project
-		url = url_for_project issue.project
 
-		return unless channel and url
+		return unless channel
 		return if issue.is_private?
 
 		msg = "[#{escape issue.project}] #{escape issue.author} created <#{object_url issue}|#{escape issue}>#{mentions issue.description}"
@@ -36,7 +35,7 @@ class Listener < Redmine::Hook::Listener
 			:short => true
 		} if Setting.plugin_redmine_slack['display_watchers'] == 'yes'
 
-		speak msg, channel, attachment, url
+		speak msg, channel, attachment
 	end
 
 	def redmine_slack_issues_edit_after_save(context={})
@@ -44,9 +43,8 @@ class Listener < Redmine::Hook::Listener
 		journal = context[:journal]
 
 		channel = channel_for_project issue.project
-		url = url_for_project issue.project
 
-		return unless channel and url and Setting.plugin_redmine_slack['post_updates'] == '1'
+		return unless channel and Setting.plugin_redmine_slack['post_updates'] == '1'
 		return if issue.is_private?
 		return if journal.private_notes?
 
@@ -56,7 +54,7 @@ class Listener < Redmine::Hook::Listener
 		attachment[:text] = escape journal.notes if journal.notes
 		attachment[:fields] = journal.details.map { |d| detail_to_field d }
 
-		speak msg, channel, attachment, url
+		speak msg, channel, attachment
 	end
 
 	def model_changeset_scan_commit_for_issue_ids_pre_issue_update(context={})
@@ -65,9 +63,8 @@ class Listener < Redmine::Hook::Listener
 		changeset = context[:changeset]
 
 		channel = channel_for_project issue.project
-		url = url_for_project issue.project
 
-		return unless channel and url and issue.save
+		return unless channel and issue.save
 		return if issue.is_private?
 
 		msg = "[#{escape issue.project}] #{escape journal.user.to_s} updated <#{object_url issue}|#{escape issue}>"
@@ -103,7 +100,7 @@ class Listener < Redmine::Hook::Listener
 		attachment[:text] = ll(Setting.default_language, :text_status_changed_by_changeset, "<#{revision_url}|#{escape changeset.comments}>")
 		attachment[:fields] = journal.details.map { |d| detail_to_field d }
 
-		speak msg, channel, attachment, url
+		speak msg, channel, attachment
 	end
 
 	def controller_wiki_edit_after_save(context = { })
@@ -121,9 +118,8 @@ class Listener < Redmine::Hook::Listener
 		end
 
 		channel = channel_for_project project
-		url = url_for_project project
 		
-		return unless channel and url
+		return unless channel
 
 		attachment = nil
 		if not page.content.comments.empty?
@@ -131,13 +127,12 @@ class Listener < Redmine::Hook::Listener
 			attachment[:text] = "#{escape page.content.comments}"
 		end
 
-		speak comment, channel, attachment, url
+		speak comment, channel, attachment
 	end
 
-	def speak(msg, channel, attachment=nil, url=nil)
-		url = Setting.plugin_redmine_slack['slack_url'] if not url
-		username = Setting.plugin_redmine_slack['username']
+	def speak(msg, channel, attachment=nil)
 		icon = Setting.plugin_redmine_slack['icon']
+	  Rails.logger.error("Speak")
 
 		params = {
 			:text => msg,
@@ -145,26 +140,19 @@ class Listener < Redmine::Hook::Listener
 			:link_names => 0,
 		}
 
-		params[:username] = username if username
 		params[:channel] = channel if channel
 
 		params[:attachments] = [attachment] if attachment
 
-		if icon and not icon.empty?
-			if icon.start_with? ':'
-				params[:icon_emoji] = icon
-			else
-				params[:icon_url] = icon
-			end
-		end
-
 		begin
-			client = HTTPClient.new
-			client.ssl_config.cert_store.set_default_paths
-			client.ssl_config.ssl_version = :auto
-			client.post_async url, {:payload => params.to_json}
+			Slack.configure do |config|
+				config.token = AuthToken.first.token
+			end
+			client = Slack::Web::Client.new
+			client.chat_postMessage(params)
+
 		rescue Exception => e
-			Rails.logger.warn("cannot connect to #{url}")
+			Rails.logger.warn("failed to post to slack")
 			Rails.logger.warn(e)
 		end
 	end
