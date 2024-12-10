@@ -17,6 +17,7 @@ the underscore!):
 You will also need the `httpclient` dependency, which can be installed by running
 
     bundle install
+    bundle exec rake redmine:plugins:migrate
 
 from the plugin directory.
 
